@@ -23,7 +23,7 @@ want. You should not need to edit the driver code, though you can if you wish.
 
 import sys, os, os.path
 import argparse
-
+sys.path.append('/Users/eirikbaekkelund/Desktop/UCL/intro_to_machine_learning/labs')
 import numpy as np
 import numpy.random
 import matplotlib.pyplot as plt
@@ -87,7 +87,6 @@ def plot_noisy_linear_1d(axes, num_samples, weights, sigma, limits, rng):
     """
     assert(len(weights)==2)
     X, y = generate_noisy_linear(num_samples, weights, sigma, limits, rng)
-    
     axes.plot(X, y, color='red', marker='o', linestyle='')
     
     y0 = weights[0] + limits[0] * weights[1]

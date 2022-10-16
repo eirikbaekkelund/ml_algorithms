@@ -23,10 +23,12 @@ want. You should not need to edit the driver code, though you can if you wish.
 
 import sys, os, os.path
 import argparse
+from matplotlib.colors import rgb2hex
 
 import numpy as np
 import numpy.random
 import matplotlib.pyplot as plt
+from sympy import li, limit
 
 import utils
 
@@ -34,6 +36,87 @@ import utils
 #### ADD YOUR CODE BELOW
 
 # -- Question 1 --
+
+def decision_boundary_1D(X,weights):
+    
+    return np.where(0 > add_bias_to_X(X) @ weights, 0, 1)
+
+def add_bias_to_X(X):
+    """
+    Add bias term to X
+
+    # Arguments
+    X: a matrix of sample inputs, where the samples are the 
+       rows and the features are the columns
+    # Returns
+    X: 
+    """
+    if len(X.shape) > 2:
+        shape = list(X.shape)
+        shape[-1] = shape[-1] - 1
+        n_ones = np.ones(shape=tuple(shape), dtype=X.dtype)
+    else:
+        n_ones = np.ones(shape=X.shape[0], dtype=X.dtype)
+
+    X = np.c_[n_ones, X]
+    return X
+
+
+def generate_y(X, weights, sigma):
+    """
+    
+    """
+    reshaper = None
+
+    if len(weights) == X.shape[-1] + 1:
+            X = add_bias_to_X(X)
+    
+    elif len(X.shape) <= 2 and len(weights) == X.shape[-1] + 1:
+            X = add_bias_to_X(X)
+
+    else:
+        reshaper = X.shape[:-1]
+        X = X.reshape(np.product(reshaper), X.shape[-1])
+    
+    y = X @ weights + np.random.normal(loc=0.0, scale=sigma, size=X.shape[0])
+    
+    if reshaper is not None:
+        y = y.reshape(reshaper)
+
+    return y 
+
+def generate_X(num_samples, weights, limits, rng):
+    """
+    
+    """
+    x_range = abs(np.diff(limits))
+    rng = np.random.default_rng(seed=12345)
+    X = x_range * rng.random( size = (num_samples,len(weights)-1) ) + limits[0]
+    
+    return X
+
+def generate_grid_2D(limits, num_divisions, count):
+    """
+    
+    """
+    nodes = np.linspace(limits[0], limits[1], num=num_divisions)
+    X = np.moveaxis(np.stack(np.meshgrid(*((nodes,)* count), indexing='ij')), 0, -1)
+    return X
+
+def y_limits(limits, weights):
+    """
+    
+    """
+    smallest_lim = np.append(np.ones(1), np.array([limits[0] for _ in range(len(weights)-1)]))
+    largest_lim = np.append(np.ones(1), np.array([limits[1] for _ in range(len(weights)-1)]))
+    
+    y_lower_lim = weights.T @ np.reshape(smallest_lim, newshape= weights.shape)
+    # largest possible y
+    y_upper_lim = weights.T @ np.reshape(largest_lim, newshape=weights.shape)
+
+    return y_lower_lim, y_upper_lim
+
+
 
 def generate_noisy_linear(num_samples, weights, sigma, limits, rng):
     """
@@ -60,8 +143,14 @@ def generate_noisy_linear(num_samples, weights, sigma, limits, rng):
         y: a vector of num_samples output values
     """
     
-    # TODO: implement this
-    return None, None
+    X = generate_X( num_samples=num_samples,
+                    weights=weights,
+                    limits=limits,
+                    rng=rng)
+
+    y = generate_y(X=X, weights=weights, sigma=sigma)
+    
+    return X, y
 
 
 def plot_noisy_linear_1d(axes, num_samples, weights, sigma, limits, rng):
@@ -88,9 +177,28 @@ def plot_noisy_linear_1d(axes, num_samples, weights, sigma, limits, rng):
     assert(len(weights)==2)
     X, y = generate_noisy_linear(num_samples, weights, sigma, limits, rng)
     
-    # TODO: do the plotting
-    utils.plot_unimplemented ( axes, 'Noisy 1D Linear Model' )
+    # weights[0] contains bias (i.e. intercept)
+    # weights[1] contains weight to scale
+    # limits[0] is the smallest possible x value
+    # limits[1] contains the largest possiblel x value
 
+    # smallest possible y
+    y0 = weights.T @ np.reshape(np.c_[1, limits[0]], newshape= weights.shape)
+    # largest possible y
+    y1 = weights.T @ np.reshape(np.c_[1, limits[1]], newshape=weights.shape)
+
+    # plot noise
+    axes.scatter(X[:,0], y, marker = 'o', color = 'red')
+    # plot linear min to max
+    axes.plot((limits[0],limits[1]),(y0, y1), linestyle='dashed', color='black')
+
+    axes.set_xlim(limits[0], limits[1])
+    axes.set_ylim(limits[0],limits[1])
+    axes.set_title('Noisy 1D-linear model', fontweight = 'extra bold')
+    axes.set_xlabel('$X$', fontweight='extra bold')
+    axes.set_ylabel('$Y$', fontweight='extra bold')
+    
+    utils.plot_unimplemented(axes, title='Noisy 1D Linear Model' )
 
 def plot_noisy_linear_2d(axes, resolution, weights, sigma, limits, rng):
     """
@@ -112,8 +220,18 @@ def plot_noisy_linear_2d(axes, resolution, weights, sigma, limits, rng):
     """
     assert(len(weights)==3)
     
-    # TODO: generate the data
-    # TODO: do the plotting
+    xx = generate_grid_2D(limits=limits, num_divisions=resolution, count=2)
+    y = generate_y(X=xx, weights=weights, sigma=sigma)
+
+    extent = (limits[0], limits[1], limits[0], limits[1])
+    
+    axes.imshow(y.T, cmap='GnBu', origin = 'lower', extent=extent)
+    axes.contour(y.T, np.linspace(np.min(y), np.max(y), 10), colors='white', origin = 'lower', extent=extent)
+
+    axes.set_xlabel('$X_{1}$')
+    axes.set_ylabel('$X_{2}$')
+    axes.set_title('Noisy 2D Linear Model', fontweight = 'extra bold')
+   
     utils.plot_unimplemented ( axes, 'Noisy 2D Linear Model' )
 
 
@@ -143,10 +261,14 @@ def generate_linearly_separable(num_samples, weights, limits, rng):
               num_samples x (len(weights) - 1)
         y: a vector of num_samples binary labels
     """
-    # TODO: implement this
-    return None, None
-
-
+    
+    X = generate_X(num_samples=num_samples,
+                   weights=weights, 
+                   limits=limits, 
+                   rng=rng)
+    
+    y = decision_boundary_1D(X=X, weights=weights)
+    return X, y
 
 def plot_linearly_separable_2d(axes, num_samples, weights, limits, rng):
     """
@@ -168,9 +290,30 @@ def plot_linearly_separable_2d(axes, num_samples, weights, limits, rng):
         None
     """
     assert(len(weights)==3)
+    
     X, y = generate_linearly_separable(num_samples, weights, limits, rng)
     
-    # TODO: do the plotting
+    colors = ['red', 'blue']
+    markers = ['o', '<']
+
+    for idx, class_num in enumerate(np.unique(y)):
+        axes.scatter(X[ y == class_num, 0], X[ y == class_num, 1], 
+                     color = colors[idx],
+                     marker = markers[idx],
+                     label = f"Class {idx}")
+    
+    
+    decision_boundary = add_bias_to_X(X) @ weights
+    
+    #axes.plot(, color = 'black', linestyle='--')
+    
+    axes.legend(loc='best')
+    axes.set_title('Linearly Seperable Binary Data')
+    axes.set_xlim(limits[0], limits[1])
+    axes.set_ylim(limits[0], limits[1])
+    axes.set_xlabel('$X_{1}$')
+    axes.set_ylabel('$X_{2}$')
+    plt.show()
     utils.plot_unimplemented ( axes, 'Linearly Separable Binary Data' )
 
 
@@ -219,8 +362,10 @@ def grid_search(function, count, num_divisions, limits):
         x: a vector of length count, containing the found features
     """
     
-    # TODO: implement this
-    return None
+    X, y = utils.grid_sample(function, count, num_divisions, limits)
+    loc = np.unravel_index(np.argmin(y), y.shape)
+    
+    return X[loc]
 
 
 def plot_searches_2d(axes, function, limits, resolution,
@@ -253,7 +398,27 @@ def plot_searches_2d(axes, function, limits, resolution,
         None
     """
     
-    # TODO: implement this
+    X, y = utils.grid_sample(function, 2, resolution, limits)
+    axes.imshow(y.T, cmap='GnBu', origin='lower', extent=(limits[0], limits[1], limits[0], limits[1]) )
+    
+    levels = np.linspace(np.min(y), np.max(y), 10)
+    axes.contour(y.T, levels, colors='white', origin='lower', extent=(limits[0], limits[1], limits[0], limits[1]) )
+    
+    r1, r2 = random_search(function, 2, num_samples, limits, rng)
+    g1, g2 = grid_search(function, 2, num_divisions, limits)
+    
+    if true_min is not None:
+        axes.plot(true_min[0], true_min[1], color='green', marker='x', linestyle='', label='True')
+
+    axes.plot(r1, r2, color='red', marker='o', linestyle='', label='Random')
+    axes.plot(g1, g2, color='blue', marker='v', linestyle='', label='Grid')
+        
+    axes.legend()
+    
+    axes.set_xlabel('$x_1$')
+    axes.set_ylabel('$x_2$')
+    
+    axes.set_title('Sampling Search')
     utils.plot_unimplemented ( axes, 'Sampling Search' )
 
 

@@ -35,7 +35,9 @@ def make_grid(limits=(-1, 1), num_divisions=10, count=2):
            and size count on the last
     """
     ticks = np.linspace(limits[0], limits[1], num=num_divisions)
-    return np.moveaxis(np.stack(np.meshgrid(*((ticks,) * count), indexing='ij')), 0, -1)
+    X = np.moveaxis(np.stack(np.meshgrid(*((ticks,) * count), indexing='ij')), 0, -1)
+    print(X)
+    return X
     
 
 def make_random(num_samples=100, limits=(-1, 1), rng=local_rng, count=2):
@@ -133,10 +135,12 @@ def reshaped_apply(X, func):
            and having a corresponding shape
     """
     rewind = None
+    
     if len(X.shape) > 2:
+        print(X.shape)
         rewind = X.shape[:-1]
         X = X.reshape(np.product(rewind), X.shape[-1])
-    
+        print(X.shape)
     y = func(X)
     
     if rewind is not None:
@@ -161,6 +165,7 @@ def add_x0(X):
            term x0
     """
     x0 = np.expand_dims(np.ones(X.shape[:-1], X.dtype), axis=-1)
+    
     return np.concatenate((x0, X), axis=-1)
 
 
@@ -239,8 +244,8 @@ def plot_unimplemented ( axes, title='Not implemented', msg='Not implemented' ):
         None
     """
     axes.set_title(title)
-    axes.xaxis.set_visible(False)
-    axes.yaxis.set_visible(False)
+    axes.xaxis.set_visible(True)
+    axes.yaxis.set_visible(True)
     axes.text(0.5, 0.5, msg,
               horizontalalignment='center',verticalalignment='center',
               color='grey', fontsize='xx-large', fontweight='black', rotation=30)

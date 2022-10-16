@@ -17,16 +17,19 @@ NB: the code imports two functions from last week's exercises. If you were not
 able to complete those functions, please talk to the TAs to get a working version.
 """
 
+from hashlib import new
 import sys, os, os.path
 import argparse
 
 import numpy as np
 import numpy.random
 import matplotlib.pyplot as plt
+from sklearn.linear_model import ridge_regression
 
 import utils
 
 from week_1 import generate_noisy_linear, generate_linearly_separable
+import week_1
 
 #### ADD YOUR CODE BELOW
 
@@ -52,9 +55,12 @@ def ridge_closed ( X, y, l2=0 ):
     """
     assert(len(X.shape)==2)
     assert(X.shape[0]==len(y))
+
+    A = X.T @ X
+    b = X.T @ y
+    w = np.linalg.inv(A + l2*np.eye(N=A.shape[0], M=A.shape[1]) ) @ b
     
-    # TODO: implement this
-    return None
+    return w
 
 
 # -- Question 2 --
@@ -77,9 +83,8 @@ def monomial_projection_1d ( X, degree ):
     """
     assert(len(X.shape)==2)
     assert(X.shape[1]==1)
-
-    # TODO: implement this
-    return None
+    
+    return np.hstack([np.power(X,i) for i in range(degree+1)])
 
 
 def generate_noisy_poly_1d ( num_samples, weights, sigma, limits, rng ):
@@ -107,8 +112,20 @@ def generate_noisy_poly_1d ( num_samples, weights, sigma, limits, rng ):
               num_samples x 1
         y: a vector of num_samples output values
     """
-    # TODO: implement this
-    return None, None
+    
+    rng = np.random.default_rng(seed=12345)
+    
+    X, _ = generate_noisy_linear(num_samples=num_samples,
+                              weights=weights,
+                              sigma=sigma,
+                              limits=limits,
+                              rng=rng)
+    X = np.reshape(X[:,0], newshape=(num_samples,1))
+    X_copy = monomial_projection_1d(X=X, degree=len(weights)-1)    
+
+    y = X_copy @ weights 
+
+    return X, y
 
     
 def fit_poly_1d ( X, y, degree, l2=0 ):
@@ -130,8 +147,10 @@ def fit_poly_1d ( X, y, degree, l2=0 ):
     assert(X.shape[1]==1)
     assert(X.shape[0]==len(y))
 
-    # TODO: implement this
-    return None
+    X = monomial_projection_1d(X, degree)
+    w = ridge_closed(X=X, y=y, l2=l2)
+    
+    return w
 
 
 
@@ -167,11 +186,47 @@ def gradient_descent ( z, loss_func, grad_func, lr=0.01,
         zs: a list of the z values at each iteration
         losses: a list of the losses at each iteration
     """
-    # TODO: implement this
-    return None, None
+    losses, zs = [np.inf], [z]
+    step_change_loss = np.inf
+    step_change_z = np.inf
+
+    while (len(zs) <= max_iter) and (step_change_loss > loss_stop) and (step_change_z > z_stop):
+        z = zs[-1] - lr*grad_func(zs[-1])
+        zs.append(z)
+        losses.append(loss_func(zs[-1]))
+
+        step_change_z = abs(zs[-1]-zs[-2])
+        print(losses)
+        step_change_loss = np.linalg.norm(losses[-2] - losses[-1])
+
+    print(losses[-1], zs[-1])
+    return zs[1:], losses[1:]
 
 
 # -- Question 4 --
+def sigmoid(X, y, weights):
+    """
+    
+    """
+    z = X @ weights
+    return 1 / (1 + np.exp(-z))
+
+def cross_entropy_loss(X, y, weights, offset = 1e-10):
+    """
+    
+    """
+    y_hat = sigmoid(X, y, weights)
+    n = X.shape[0]
+
+    loss = ( -1/n ) * ( y * np.log(y_hat + offset) + ( 1 - y_hat ) * np.log(1-y_hat + offset) )
+    return loss, y_hat
+
+def logistic_gradient(X, y, weights):
+    """
+    
+    """
+    print(X.shape, y.shape)
+    return X.T @ ( y - sigmoid( X, y, weights ) )
 
 def logistic_regression ( X, y, w0=None, lr=0.05,
                           loss_stop=1e-4, weight_stop=1e-4, max_iter=100 ):
@@ -201,9 +256,19 @@ def logistic_regression ( X, y, w0=None, lr=0.05,
     """
     assert(len(X.shape)==2)
     assert(X.shape[0]==len(y))
+
+    if w0 is None:
+        w0 = np.zeros(X.shape[-1])
     
-    # TODO: implement this
-    return None, None
+    return gradient_descent(
+                            z=w0,
+                            loss_func = lambda z: cross_entropy_loss(X, y, z),
+                            grad_func = lambda z: logistic_gradient(X, y, z),
+                            loss_stop=loss_stop,
+                            z_stop=weight_stop,
+                            lr=lr,
+                            max_iter=max_iter
+    )
 
 
 #### plotting utilities
