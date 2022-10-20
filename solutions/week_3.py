@@ -17,7 +17,7 @@ want. You should not need to edit the driver code, though you can if you wish.
 import sys, os, os.path
 import argparse
 import pprint
-
+sys.path.append(os.path.abspath('./Desktop/UCL/intro_to_machine_learning/labs/utils.py'))
 import numpy as np
 import numpy.random
 import matplotlib

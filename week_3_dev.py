@@ -14,11 +14,16 @@ A 4-panel figure, `week_3.pdf`, will be generated so you can check it's doing wh
 want. You should not need to edit the driver code, though you can if you wish.
 """
 
+from calendar import c
+from itertools import count
 import sys, os, os.path
 import argparse
 import pprint
+from turtle import distance
+from bitarray import test
 
 import numpy as np
+import math
 import numpy.random
 import matplotlib
 import matplotlib.pyplot as plt
@@ -30,6 +35,73 @@ import utils
 #### ADD YOUR CODE BELOW
 
 # -- Question 1 --
+def rank_array(arr_distance, k_neighbours):
+    """
+    Rank the indices of the array based on distance and find
+    the indices of the K smallest values.
+
+    Parameters:
+    arr_distance - array containing distance between points in training set and test point
+    k_neighbours - the number of neighbours
+
+    Returns:
+    arr_distance - array transformed to the ranked indices of the K points
+    """
+    assert(k_neighbours >= 1)
+
+    distance_copy = arr_distance.copy()
+    distance_copy.sort()
+    
+    ranks = {}
+    rank1 = 0
+    # Rank elements
+    for i in range(len(distance_copy)):
+        val = distance_copy[i]
+        if val not in ranks.keys():
+            ranks[val] = rank1
+            rank1 += 1
+    
+    rank2 = 0
+    k_nearest = []
+     # Assign ranks to elements
+    for idx in range(len(arr_distance)):
+        element = arr_distance[idx]
+        if ranks[element] in range(k_neighbours) and rank2 < k_neighbours:
+            k_nearest.append(idx)
+            rank2 += 1
+        if len(k_nearest) == k_neighbours:
+            return k_nearest
+
+def vote_nn(indices, train_y):
+    """
+    
+    """
+    unique, counts = np.unique([train_y[indices[i]] for i in range(len(indices))], return_counts=True)
+    counter_dict = dict(zip(unique, counts))
+
+    return max(counter_dict, key=counter_dict.get)
+
+def vote(y):
+    """
+    Return the class with highest number of occurances in a prediction
+    from an array
+
+    Parameters:
+    y - an array with predictions
+
+    Returns:
+    cls - class with the highest number of predictions
+    ! special case when several have the same number of occurences,
+      then it defaults to the lowest in numerical value
+    """
+    unique, counts = np.unique(y, return_counts=True)
+    return unique[np.argmax(counts)]
+
+def euclidean_distance(train_X, test_point):
+    """
+    
+    """
+    return [np.sqrt(np.sum((train_X[i] - test_point)**2)) for i in range(train_X.shape[0])]
     
 def nearest_neighbours_predict ( train_X, train_y, test_X, neighbours=1 ):
     """
@@ -50,9 +122,14 @@ def nearest_neighbours_predict ( train_X, train_y, test_X, neighbours=1 ):
     """
     assert(train_X.shape[0] == train_y.shape[0])
     assert(train_X.shape[1] == test_X.shape[1])
+    
+    test_y = []
+    for point in test_X:
+        arr_distance = euclidean_distance(train_X, point)
+        rank_index = rank_array(arr_distance, neighbours)
+        test_y.append(vote_nn(rank_index, train_y))
 
-    # TODO: implement the k-nearest neighbours algorithm    
-    return None
+    return np.array(test_y)
     
 
 # -- Question 2 --
@@ -71,10 +148,22 @@ def misclassification ( y, cls, weights=None ):
     # Returns
         err: the misclassification error of the candidate labels
     """
-    
-    # TODO: implement weighted misclassification metric
-    return 1
+    if weights is not None:
+        return np.sum( weights @ np.where( y != cls, 1, 0) )
+  
+    return ( 1 / len(y) ) * np.sum( np.where( y != cls, 1, 0) ) 
 
+def misclassification_array(y_pred, y_truth):
+    """
+    Calculate misclassification array for a given
+    set of labels if assigned the given class.
+
+    Parameters:
+    y_pred - predicted class labels
+    y_truth - ground truth labels
+    """
+    return np.where( y_pred != y_truth, 1, 0)
+    
 
 def decision_node_split ( X, y, cls=None, weights=None, min_size=3 ):
     """
@@ -106,9 +195,69 @@ def decision_node_split ( X, y, cls=None, weights=None, min_size=3 ):
             (or None, if no split)
     """
     assert(X.shape[0] == len(y))
+
+    best_feature, best_threshold = None, None
+    best_c0, best_c1 = None, None
+
+    if cls == None:
+        cls = utils.vote(y)
     
-    # TODO: implement this
-    return None, None, None, None
+    if weights is None:
+        weights = np.ones(X.shape[0])/X.shape[0]
+        
+    init_loss = misclassification(y=y, cls=cls, weights=weights)
+    if init_loss == 0:
+        return None, None, None, None
+
+    loss_gain = 0
+    n_features = X.shape[-1]
+    
+    for feature in range(n_features):
+        for tresh in X[:,feature]:
+            X1 = X[:,feature] > tresh
+            # negation of X1
+            X2 = ~X1
+
+            # /TODO ask: 
+            # how does this account for splits?
+            if (np.sum(X1) < min_size) or (np.sum(X2) < min_size):
+                continue
+            y1 = y[X1]
+            y2 = y[X2]
+
+            weights1 = weights[X1]
+            weights2 = weights[X2]
+
+            c1 = np.unique(y1)
+            c2 = np.unique(y2)
+
+            loss1 = [misclassification(y=y1, cls=cl, weights=weights1) for cl in c1]
+            loss2 = [misclassification(y=y2, cls=cl, weights=weights2) for cl in c2]
+            
+            # gives index of corresponding to class with 
+            # minimum loss passed to unique classes
+            node_1_class = c1[np.argmin(loss1)]
+            node_2_class = c2[np.argmin(loss2)]
+            
+            # predicting the class with minimum loss leads to following loss
+            best_loss1 = np.min(loss1)
+            best_loss2 = np.min(loss2)
+
+            # take old loss and subtract new loss to see gain
+            loss_improvement = init_loss - (best_loss1 +  best_loss2)
+
+            if loss_improvement > loss_gain:
+                best_feature = feature
+                best_threshold = tresh
+                loss_gain = loss_improvement
+                best_c0 = node_1_class
+                best_c1 = node_2_class
+                
+    if best_feature == None:
+        return None, None, None, None
+    
+    else:
+        return best_feature, best_threshold, best_c0, best_c1
 
 
 def decision_tree_train ( X, y, cls=None, weights=None,
@@ -140,9 +289,56 @@ def decision_tree_train ( X, y, cls=None, weights=None,
             'below' : a nested tree for when feature < thresh (decision)
             'above' : a nested tree for when feature >= thresh (decision)
     """
-    # TODO: implement this
-    return None
+    if cls == None:
+        cls = utils.vote(y)
+    if depth == max_depth:
+        # return majority vote if no nodes
+        return {'kind' : 'leaf', 'class' : cls}
+    else:
+        # we perform a split
+        feat, thresh, cl0, cl1 = decision_node_split(X=X,
+                                                    y=y,
+                                                    cls=cls,
+                                                    weights=weights,
+                                                    min_size=min_size)
+
     
+    if feat is None:
+        # No improvement on loss by split, so return majority vote
+        return {'kind' : 'leaf', 'class' : cls}
+
+    X1 = X[:, feat] >= thresh
+    X2 = ~X1
+
+    return {'kind' : 'decision',
+            'feature' : feat,
+            'thresh': thresh,
+            'below' : decision_tree_train(X = X[X2,:],
+                                          y=y[X2],
+                                          cls=cl1,
+                                          weights=None if weights is None else weights[X2],
+                                          depth=depth+1,
+                                          min_size=min_size,
+                                          max_depth=max_depth
+                                          ),
+            'above' : decision_tree_train(X = X[X1,:],
+                                          y=y[X1],
+                                          cls=cl0,
+                                          weights=None if weights is None else weights[X1],
+                                          depth=depth+1,
+                                          min_size=min_size,
+                                          max_depth=max_depth
+                                          )}
+    
+def predictor_tree(tree, x):
+    """
+    
+    """
+    while True:
+        if tree['kind'] == 'leaf':
+            return tree['class']
+        
+        tree = tree['above'] if x[tree['feature']] >= tree['thresh'] else tree['below']
 
 def decision_tree_predict ( tree, X ):
     """
@@ -154,10 +350,10 @@ def decision_tree_predict ( tree, X ):
             and columns are features.
 
     # Returns
-        y: the predicted labels
+        y: array of the predicted labels 
     """
-    # TODO: implement this
-    return None
+    
+    return np.array([ predictor_tree( tree, X[i,:] ) for i in range(X.shape[0]) ]) 
 
 
 # -- Question 3 --
@@ -179,9 +375,22 @@ def random_forest_train ( X, y, k, rng, min_size=3, max_depth=10 ):
     # Returns:
         forest: a list of tree dicts as returned by decision_tree_train
     """
-    
-    # TODO: implement this
-    return None
+    forest = []
+    rng = np.random.default_rng(seed=12345)
+
+    for _ in range(k):
+        # get random set of training data from X & y (corresponding indices)
+        # train decision tree on that data
+        # append the trained tree to the forest
+        idx = rng.choice(np.arange(len(y)), size=len(y))
+        X_slice  = X[idx,:]
+        y_slice = y[idx]
+
+        forest.append(decision_tree_train(X_slice, y_slice, 
+                                          min_size=min_size, 
+                                          max_depth=max_depth))
+  
+    return forest
     
 
 def random_forest_predict ( forest, X ):
@@ -197,11 +406,22 @@ def random_forest_predict ( forest, X ):
     # Returns
         y: the predicted labels
     """
-    # TODO: implement this
-    return None
+    tree_predictions = np.array([decision_tree_predict(tree, X) for tree in forest])
+
+    return np.array([vote(tree_predictions[:,i]) 
+                    for i in range(max(tree_predictions.shape))
+                    ])
+
 
 
 # -- Question 4 --
+
+def normalize_weights_adaboost(weights, alpha, y_hat, y):
+    weights = np.array([ weights[i] * np.exp( - alpha * y[i] * y_hat[i] )  
+                             for i in range(len(y))
+                            ])
+    return weights / np.sum(weights)
+
 
 def adaboost_train ( X, y, k, min_size=1, max_depth=1, epsilon=1e-8 ):
     """
@@ -224,8 +444,37 @@ def adaboost_train ( X, y, k, min_size=1, max_depth=1, epsilon=1e-8 ):
         alphas: a vector of weights indicating how much credence to
             given each of the decision tree predictions
     """
-    # TODO: implement this
-    return None, None
+    trees, alphas = [], []
+    weights = ( 1 / len(y) ) * np.ones( len(y) )
+
+    for _ in range(k):
+        #train ensemble, get prediction and update weights
+        trees.append(decision_tree_train(X=X,
+                                        y=y,
+                                        weights=weights,
+                                        min_size=min_size,
+                                        max_depth=max_depth))
+        y_hat = decision_tree_predict(trees[-1], X)
+      
+        error = weights @ misclassification_array(y_pred=y_hat, y_truth=y)
+
+        # get latest alpha 
+        if error > epsilon:
+            alphas.append( ( 1 / 2 ) * np.log( ( 1 - error) / error ))
+        
+        # error ~= 0 --> perfect prediction
+        else:
+            alphas.append(1)
+            break
+
+        weights = normalize_weights_adaboost(weights=weights, 
+                                             alpha=alphas[-1], 
+                                             y_hat=y_hat, 
+                                             y=y)
+    
+    alphas = np.array(alphas)
+
+    return trees, alphas
 
 
 def adaboost_predict ( trees, alphas, X ):
@@ -242,8 +491,10 @@ def adaboost_predict ( trees, alphas, X ):
     # Returns
         y: the predicted labels
     """
-    # TODO: implement this
-    return None
+    preds = np.array( [decision_tree_predict(tree, X) for tree in trees] )
+    preds_weighted = alphas @ preds
+
+    return np.where(preds_weighted >= 0, 1, 0)
     
 
 #### TEST DRIVER
@@ -275,7 +526,7 @@ if __name__ == '__main__':
     
     print(f'Q1: checking {args.neighbours}-nearest neighbours fit')
     # this is a fudge -- there's no training phase, so check implementation with a dummy prediction
-    dummy = nearest_neighbours_predict ( X[:2,:], y[:2], X[:2,:], neighbours=args.neighbours )
+    dummy = nearest_neighbours_predict ( X[:3,:], y[:3], X[:3,:], neighbours=args.neighbours )
     if dummy is None:
         print('decision tree not implemented')
         utils.plot_unimplemented(axs[0,0], f'{args.neighbours}-Nearest Neighbours')

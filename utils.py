@@ -316,8 +316,7 @@ def plot_classification_map ( axes, classifier,
     axes.set_ylabel('$x_2$')
     
     if legend_loc is not None:
-        axes.legend(loc=legend_loc)
-    
+        axes.legend(loc=legend_loc)    
 
 def plot_image(axes, image, title=''):
     """

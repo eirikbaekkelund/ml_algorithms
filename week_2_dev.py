@@ -20,7 +20,8 @@ able to complete those functions, please talk to the TAs to get a working versio
 from hashlib import new
 import sys, os, os.path
 import argparse
-
+sys.path.append('/Users/eirikbaekkelund/Desktop/UCL/intro_to_machine_learning/labs/solutions')
+print(os.path.abspath('week_1.py'))
 import numpy as np
 import numpy.random
 import matplotlib.pyplot as plt
@@ -186,7 +187,7 @@ def gradient_descent ( z, loss_func, grad_func, lr=0.01,
         zs: a list of the z values at each iteration
         losses: a list of the losses at each iteration
     """
-    losses, zs = [np.inf], [z]
+    losses, zs = [loss_func(z)], [z]
     step_change_loss = np.inf
     step_change_z = np.inf
 
@@ -195,11 +196,9 @@ def gradient_descent ( z, loss_func, grad_func, lr=0.01,
         zs.append(z)
         losses.append(loss_func(zs[-1]))
 
-        step_change_z = abs(zs[-1]-zs[-2])
-        print(losses)
-        step_change_loss = np.linalg.norm(losses[-2] - losses[-1])
+        step_change_z = np.linalg.norm(zs[-1]-zs[-2])
+        step_change_loss = np.sum(abs(losses[-2] - losses[-1]))
 
-    print(losses[-1], zs[-1])
     return zs[1:], losses[1:]
 
 
@@ -219,13 +218,13 @@ def cross_entropy_loss(X, y, weights, offset = 1e-10):
     n = X.shape[0]
 
     loss = ( -1/n ) * ( y * np.log(y_hat + offset) + ( 1 - y_hat ) * np.log(1-y_hat + offset) )
-    return loss, y_hat
+    return loss
 
 def logistic_gradient(X, y, weights):
     """
     
     """
-    print(X.shape, y.shape)
+
     return X.T @ ( y - sigmoid( X, y, weights ) )
 
 def logistic_regression ( X, y, w0=None, lr=0.05,
@@ -260,7 +259,7 @@ def logistic_regression ( X, y, w0=None, lr=0.05,
     if w0 is None:
         w0 = np.zeros(X.shape[-1])
     
-    return gradient_descent(
+    ws, losses = gradient_descent(
                             z=w0,
                             loss_func = lambda z: cross_entropy_loss(X, y, z),
                             grad_func = lambda z: logistic_gradient(X, y, z),
@@ -269,7 +268,10 @@ def logistic_regression ( X, y, w0=None, lr=0.05,
                             lr=lr,
                             max_iter=max_iter
     )
+    print('Losses: ', losses, '\n')
+    print('Weights: ', ws)
 
+    return ws, losses
 
 #### plotting utilities
 
