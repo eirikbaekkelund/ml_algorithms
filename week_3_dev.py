@@ -63,7 +63,8 @@ def rank_array(arr_distance, k_neighbours):
     
     rank2 = 0
     k_nearest = []
-     # Assign ranks to elements
+    
+    # Assign ranks to elements
     for idx in range(len(arr_distance)):
         element = arr_distance[idx]
         if ranks[element] in range(k_neighbours) and rank2 < k_neighbours:
@@ -417,13 +418,11 @@ def random_forest_predict ( forest, X ):
 # -- Question 4 --
 
 def normalize_weights_adaboost(weights, alpha, y_hat, y):
-    weights = np.array([ weights[i] * np.exp( - alpha * y[i] * y_hat[i] )  
-                             for i in range(len(y))
-                            ])
+    weights = weights * np.exp(alpha * misclassification_array(y_hat, y))
     return weights / np.sum(weights)
 
 
-def adaboost_train ( X, y, k, min_size=1, max_depth=1, epsilon=1e-8 ):
+def adaboost_train ( X, y, k, min_size=1, max_depth=3, epsilon=1e-8 ):
     """
     Iteratively train a set of decision tree classifiers
     using AdaBoost.
@@ -456,10 +455,11 @@ def adaboost_train ( X, y, k, min_size=1, max_depth=1, epsilon=1e-8 ):
                                         max_depth=max_depth))
         y_hat = decision_tree_predict(trees[-1], X)
       
-        error = weights @ misclassification_array(y_pred=y_hat, y_truth=y)
+        error = weights @ misclassification_array(y_pred=y_hat, 
+                                                  y_truth=y)
 
         # get latest alpha 
-        if error > epsilon:
+        if error >= epsilon:
             alphas.append( ( 1 / 2 ) * np.log( ( 1 - error) / error ))
         
         # error ~= 0 --> perfect prediction
@@ -471,11 +471,7 @@ def adaboost_train ( X, y, k, min_size=1, max_depth=1, epsilon=1e-8 ):
                                              alpha=alphas[-1], 
                                              y_hat=y_hat, 
                                              y=y)
-    
-    alphas = np.array(alphas)
-
-    return trees, alphas
-
+    return trees, np.array(alphas)
 
 def adaboost_predict ( trees, alphas, X ):
     """
@@ -491,10 +487,10 @@ def adaboost_predict ( trees, alphas, X ):
     # Returns
         y: the predicted labels
     """
-    preds = np.array( [decision_tree_predict(tree, X) for tree in trees] )
+    preds = np.array( [decision_tree_predict(tree, X) for tree in trees] ) * 2 - 1
     preds_weighted = alphas @ preds
 
-    return np.where(preds_weighted >= 0, 1, 0)
+    return (preds_weighted >= 0).astype(int)
     
 
 #### TEST DRIVER
@@ -502,11 +498,11 @@ def adaboost_predict ( trees, alphas, X ):
 def process_args():
     ap = argparse.ArgumentParser(description='week 3 coursework script for COMP0088')
     ap.add_argument('-s', '--seed', help='seed random number generator', type=int, default=None)
-    ap.add_argument('-n', '--num_samples', help='number of samples to use', type=int, default=50)
+    ap.add_argument('-n', '--num_samples', help='number of samples to use', type=int, default=150)
     ap.add_argument('-k', '--neighbours', help='number of neighbours for k-NN fit', type=int, default=3)
     ap.add_argument('-m', '--min_size', help='smallest acceptable tree node', type=int, default=3)
-    ap.add_argument('-w', '--weak', help='how many weak classifiers to train for AdaBoost', type=int, default=10)
-    ap.add_argument('-f', '--forest', help='how many trees to train for random forest', type=int, default=10)
+    ap.add_argument('-w', '--weak', help='how many weak classifiers to train for AdaBoost', type=int, default=15)
+    ap.add_argument('-f', '--forest', help='how many trees to train for random forest', type=int, default=15)
     ap.add_argument('-r', '--resolution', help='grid sampling resolution for classification plots', type=int, default=20)
     ap.add_argument('-d', '--data', help='CSV file containing training data', default='week_3_data.csv')
     ap.add_argument('file', help='name of output file to produce', nargs='?', default='week_3.pdf')
@@ -585,4 +581,5 @@ if __name__ == '__main__':
 
     fig.tight_layout(pad=1)
     fig.savefig(args.file)
+    plt.show()
     plt.close(fig)
