@@ -44,8 +44,8 @@ def relu ( z ):
             as the input value, giving the ReLU of
             of each input value
     """
-    # TODO: implement this
-    return None
+    return np.where(z > 0, z, 0)
+    
 
 def d_relu ( z ):
     """
@@ -59,8 +59,9 @@ def d_relu ( z ):
             as the input value, giving the gradient
             of the ReLU function at each input value
     """
-    # TODO: implement this
-    return None
+    # / TODO check array size for logic operations
+    
+    return np.where(z > 0, 1, 0 )
 
 def sigmoid ( z ):
     """
@@ -74,8 +75,8 @@ def sigmoid ( z ):
             as the input value, giving the sigmoid (logistic)
             output for each input value
     """
-    # TODO: implement this
-    return None
+    
+    return 1 / (1 + np.exp(-z))
 
 def d_sigmoid ( z ):
     """
@@ -89,8 +90,8 @@ def d_sigmoid ( z ):
             as the input value, giving the gradient
             of the sigmoid function at each input value
     """
-    # TODO: implement this
-    return None
+    
+    return sigmoid(z)*(1 - sigmoid(z))
 
 def binary_crossentropy_loss ( y, y_hat, eps=1e-10 ):
     """
@@ -112,8 +113,9 @@ def binary_crossentropy_loss ( y, y_hat, eps=1e-10 ):
             the same shape as y_hat irrespective of the
             shape of y
     """
-    # TODO: implement this
-    return None
+    y = y.reshape(y_hat.shape)
+    return - (y*np.log(y_hat + eps) + (1 - y) * np.log( 1 - y_hat + eps))
+    
 
 def d_binary_crossentropy_loss ( y, y_hat, eps=1e-10 ):
     """
@@ -135,8 +137,8 @@ def d_binary_crossentropy_loss ( y, y_hat, eps=1e-10 ):
             the same shape as y_hat irrespective of the
             shape of y
     """
-    # TODO: implement this
-    return None
+    y = y.reshape(y_hat.shape)
+    return (y_hat - y) / (y_hat * (1 - y_hat ) + eps)
 
 
 # -- Question 2 --
@@ -158,8 +160,10 @@ def init_layer ( fan_in, fan_out, act, rng ):
             keys 'W', 'b', 'shape' and 'act'.
             (See the coursework for full details.)
     """
-    # TODO: implement this
-    return None
+    W = np.random.uniform(low=-np.sqrt(6/fan_in), high=np.sqrt(6/fan_in), size=(fan_in,fan_out))
+    b = np.zeros(fan_out)
+
+    return {'W' : W, 'b' : b, 'shape' : f"{(fan_in, fan_out)}", 'act' : act}
 
 
 def init_mlp ( spec, rng ):
@@ -181,8 +185,12 @@ def init_mlp ( spec, rng ):
     """
     assert(len(spec) > 1)
     
-    # TODO: implement this
-    return None
+    return [init_layer(
+            fan_in=spec[j][0], 
+            fan_out=spec[j+1][0], 
+            act=spec[j][1], rng=rng
+            ) 
+            for j in range(len(spec)-1)]
 
 
 # -- Question 3 --
@@ -206,8 +214,12 @@ def layer_forward ( layer, X ):
     """
     assert(X.shape[-1] == layer['W'].shape[0])
 
-    # TODO: implement this
-    return None
+    layer['X'] = X
+    W, b = layer['W'], layer['b']
+    layer['Z'] = X @ W + b
+    layer['A'] = sigmoid(layer['Z']) if layer['act'] == 'sigmoid' else relu(layer['Z'])
+    
+    return layer['A']
 
 
 def mlp_forward ( mlp, X ):
@@ -224,10 +236,9 @@ def mlp_forward ( mlp, X ):
     # Returns
         A: the output activations of the final network layer
     """
-    # TODO: implement this
-    return None
-
-
+    for layer in mlp:
+        X = layer_forward(layer, X)
+    return X
 
 # -- Question 4 --
 
@@ -248,11 +259,15 @@ def layer_backward ( layer, dA ):
             layer inputs from the forward pass
     """
     assert(dA.shape == layer['A'].shape)
+  
+    # compute derivatives in backward pass
+    layer['dA'] = dA
+    layer['dZ'] = dA * (d_sigmoid(layer['Z'] if layer['act'] == 'sigmoid' else d_relu(layer['Z'])))
+    layer['dX'] = (layer['dZ'] @ layer['W'].T)
+    layer['db'] = np.sum(layer['dZ'], axis=0)
+    layer['dW'] = (layer['X'].T @ layer['dZ'])
     
-    # TODO: implement this
-    return None
-
-
+    return layer['dX']
 
 def mlp_backward ( mlp, d_loss ):
     """
@@ -268,9 +283,8 @@ def mlp_backward ( mlp, d_loss ):
     # Returns
         None
     """
-    # TODO: implement this
-    pass
-
+    for layer in mlp[::-1]:
+        d_loss = layer_backward(layer, d_loss)
 
 # -- Question 5 --
 
@@ -287,10 +301,8 @@ def layer_update ( layer, lr ):
     # Returns
         None
     """
-    # TODO: implement this
-    pass
-
-    
+    layer['W'] = layer['W'] - lr*layer['dW']
+    layer['b'] = layer['b'] - lr*layer['db']
 
 def mlp_update ( mlp, lr ):
     """
@@ -305,9 +317,8 @@ def mlp_update ( mlp, lr ):
     # Returns
         None
     """
-    # TODO: implement this
-    pass
-
+    for layer in mlp:
+        layer_update(layer, lr)
 
 # -- Question 6 --
 
@@ -331,8 +342,18 @@ def mlp_minibatch ( mlp, X, y, lr ):
     assert(X.shape[0] == len(y))
     assert(X.shape[-1] == mlp[0]['W'].shape[0])
     
-    # TODO: implement this
-    return None
+    # forwards step (making prediction)
+    y_pred = mlp_forward(mlp, X)
+
+    #calculate loss
+    loss = binary_crossentropy_loss(y, y_pred)
+    # check loss after 1 iter
+    d_loss = d_binary_crossentropy_loss(y, y_pred)
+    # run gradients on backward step to update weight matrices at each layer
+    mlp_backward(mlp, d_loss)
+    mlp_update(mlp, lr)
+
+    return np.sum(loss)/len(y)
 
 
 def mlp_epoch ( mlp, X, y, batch, lr, rng ):
@@ -355,9 +376,16 @@ def mlp_epoch ( mlp, X, y, batch, lr, rng ):
     # Returns
         loss: the mean training loss over the whole dataset    
     """
-    # TODO: implement this
-    return None
+    
+    N = len(y)
+    perm = rng.permutation(N)
+    losses = []
 
+    for start in range(0,N,batch):
+        idx = perm[start:(start + batch)]
+        losses.append(mlp_minibatch(mlp, X[idx,:], y[idx], lr))
+
+    return np.mean(losses)
 
 def mlp_train ( mlp, X, y, batch, epochs, lr, rng ):
     """
@@ -380,10 +408,11 @@ def mlp_train ( mlp, X, y, batch, epochs, lr, rng ):
     # Returns
         loss: a list of the mean training loss at each epoch    
     """
-    # TODO: implement this
-    return None
-
-
+    losses = []
+    for _ in range(epochs):
+        losses.append(mlp_epoch(mlp=mlp, X=X, y=y, batch=batch, lr=lr, rng=rng))
+    
+    return losses
 
 # -- Question 7 --
 
@@ -401,8 +430,7 @@ def mlp_predict ( mlp, X, thresh=0.5 ):
     # Returns
         y_hat: a vector of predicted binary labels for X
     """
-    # TODO: implement this
-    return None
+    return (mlp_forward(mlp, X).ravel() > thresh).astype(int)
 
 
 #### TEST DRIVER
@@ -528,7 +556,7 @@ if __name__ == '__main__':
             axs[1,2].set_title('Output Activations')
             axs[1,2].set_xlabel('$x_1$')
             axs[1,2].set_ylabel('$x_2$')
-            
+    plt.show()
     fig.tight_layout(pad=1)
     fig.savefig(args.file)
     plt.close(fig)
