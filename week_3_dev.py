@@ -219,8 +219,6 @@ def decision_node_split ( X, y, cls=None, weights=None, min_size=3 ):
             # negation of X1
             X2 = ~X1
 
-            # /TODO ask: 
-            # how does this account for splits?
             if (np.sum(X1) < min_size) or (np.sum(X2) < min_size):
                 continue
             y1 = y[X1]
